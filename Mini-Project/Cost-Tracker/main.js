@@ -6,6 +6,7 @@ const totalAmount = document.querySelector("#totalAmount");
 
 let expenses = [];
 let editId = null;
+let lastAddedId = null;
 
 function toggleAddButton() {
   const title = titleInput.value.trim();
@@ -25,7 +26,6 @@ titleInput.addEventListener("input", toggleAddButton);
 amountInput.addEventListener("input", toggleAddButton);
 
 const saved = localStorage.getItem("expenses");
-
 expenses = saved ? JSON.parse(saved) : [];
 
 render();
@@ -36,22 +36,24 @@ function addBtnHandler() {
   if (!title || !amount) return;
 
   if (editId === null) {
-    // add mode
+    const id = Date.now();
     expenses.push({
-      id: Date.now(),
+      id,
       title,
       amount,
       date: new Date().toLocaleDateString(),
     });
+
+    lastAddedId = id; // 🔥 NEW
   } else {
-    // EDIT MODE
     expenses = expenses.map((e) =>
       e.id === editId ? { ...e, title, amount } : e,
     );
 
     editId = null;
     addBtn.textContent = "Add";
-    addBtn.className = "bg-black text-white px-4 py-2";
+    addBtn.classList.remove("bg-orange-500");
+    addBtn.classList.add("bg-black");
   }
 
   render();
@@ -60,6 +62,7 @@ function addBtnHandler() {
   amountInput.value = "";
   toggleAddButton();
   titleInput.focus();
+  clearEditingHighlight();
 }
 
 document.addEventListener("keydown", (e) => {
@@ -70,14 +73,20 @@ document.addEventListener("keydown", (e) => {
 
 addBtn.addEventListener("click", addBtnHandler);
 
+function clearEditingHighlight() {
+  document.querySelectorAll("#list li").forEach((li) => {
+    li.classList.remove("bg-orange-50", "border", "border-orange-400");
+  });
+}
+
 function render() {
   if (expenses.length === 0) {
     list.innerHTML = `
-    <li class="flex flex-col items-center justify-center py-10 text-gray-400 ">
-      <p class="text-lg font-medium">No expenses yet</p>
-      <p class="text-sm">Add your first expense above</p>
-    </li>
-  `;
+      <li class="flex flex-col items-center justify-center py-10 text-gray-400">
+        <p class="text-lg font-medium">No expenses yet</p>
+        <p class="text-sm">Add your first expense above</p>
+      </li>
+    `;
     totalAmount.textContent = "Total : ₹ 0";
     return;
   }
@@ -85,32 +94,39 @@ function render() {
   list.innerHTML = "";
 
   let total = 0;
+
   expenses.forEach((elem) => {
     const li = document.createElement("li");
     li.dataset.id = elem.id;
     li.className =
-      "flex justify-between items-center bg-white p-3 rounded shadow-md";
+      "flex justify-between items-center bg-white p-3 rounded shadow-md transition-all duration-200";
+
+    // 🔥 NEW — smooth add animation
+    if (elem.id === lastAddedId) {
+      li.classList.add("opacity-0", "translate-y-2");
+      requestAnimationFrame(() => {
+        li.classList.remove("opacity-0", "translate-y-2");
+      });
+    }
 
     li.innerHTML = `
-            <div>
-               <p class="font-medium">
-                 ${elem.title} :
-                 <span class="text-gray-500">₹ ${elem.amount}</span>
-               </p>
-               <p class="text-xs text-gray-400">${elem.date}</p>
-            </div>
+      <div>
+        <p class="font-medium">
+          ${elem.title} :
+          <span class="text-gray-500">₹ ${elem.amount}</span>
+        </p>
+        <p class="text-xs text-gray-400">${elem.date}</p>
+      </div>
 
-            <div class="space-x-2">
-              <button class="edit-btn text-blue-500 hover:scale-110 transition">🔁</button>
-              <button class="delete-btn text-red-500 hover:scale-110 transition">❌</button>
-            </div>
-            `;
+      <div class="space-x-2">
+        <button class="edit-btn text-blue-500 hover:scale-110 transition">🔁</button>
+        <button class="delete-btn text-red-500 hover:scale-110 transition">❌</button>
+      </div>
+    `;
 
     li.querySelector(".delete-btn").addEventListener("click", () => {
       if (!confirm("Delete this expense?")) return;
-
-      const id = elem.id;
-      expenses = expenses.filter((e) => e.id !== id);
+      expenses = expenses.filter((e) => e.id !== elem.id);
       localStorage.setItem("expenses", JSON.stringify(expenses));
       render();
     });
@@ -121,20 +137,31 @@ function render() {
 
       editId = elem.id;
       addBtn.textContent = "Update";
-      addBtn.className = "bg-orange-500 text-white px-4 py-2";
+      addBtn.classList.remove("bg-black");
+      addBtn.classList.add("bg-orange-500");
+
+      toggleAddButton();
+      clearEditingHighlight();
+
+      li.classList.add("bg-orange-50", "border", "border-orange-400");
+
+      // 🎯 scroll edited row
+      li.scrollIntoView({ behavior: "smooth", block: "center" });
     });
 
     list.appendChild(li);
-
     total += elem.amount;
   });
-  totalAmount.textContent = `Total : ₹ ${total}`;
 
+  totalAmount.textContent = `Total : ₹ ${total}`;
   localStorage.setItem("expenses", JSON.stringify(expenses));
+
+  lastAddedId = null; // 🔥 NEW
 }
 
 document.getElementById("clearAll").addEventListener("click", () => {
   if (!confirm("Clear this All expense?")) return;
+
   expenses = [];
   localStorage.removeItem("expenses");
 
@@ -144,7 +171,8 @@ document.getElementById("clearAll").addEventListener("click", () => {
 
   titleInput.value = "";
   amountInput.value = "";
-  toggleAddButton();
 
+  toggleAddButton();
+  clearEditingHighlight();
   render();
 });
